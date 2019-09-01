@@ -1,0 +1,8 @@
+Enhancement: Add option for skipping rewrite step during prune
+
+We've added the `--skip-rewrite` flag to the `prune` command which
+allows the user to skip the rewriting step of the prune command. This
+gives the user some control over the read/write activity occurs on the
+backend, which is important for those backends with metered transactions.
+
+https://github.com/restic/restic/issues/2305

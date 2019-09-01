@@ -22,12 +22,23 @@ referenced and therefore not needed any more.
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runPrune(globalOptions)
+		return runPrune(pruneOptions, globalOptions)
 	},
 }
 
+// PruneOptions collects all options for the prune command.
+type PruneOptions struct {
+	SkipRewrite bool
+}
+
+var pruneOptions PruneOptions
+
 func init() {
 	cmdRoot.AddCommand(cmdPrune)
+
+	f := cmdPrune.Flags()
+	f.SortFlags = false
+	f.BoolVar(&pruneOptions.SkipRewrite, "skip-rewrite", false, "If true, rewriting of partially unused packs will be skipped.")
 }
 
 func shortenStatus(maxLength int, s string) string {
@@ -70,7 +81,7 @@ func newProgressMax(show bool, max uint64, description string) *restic.Progress 
 	return p
 }
 
-func runPrune(gopts GlobalOptions) error {
+func runPrune(opts PruneOptions, gopts GlobalOptions) error {
 	repo, err := OpenRepository(gopts)
 	if err != nil {
 		return err
@@ -82,7 +93,7 @@ func runPrune(gopts GlobalOptions) error {
 		return err
 	}
 
-	return pruneRepository(gopts, repo)
+	return pruneRepository(opts, gopts, repo)
 }
 
 func mixedBlobs(list []restic.Blob) bool {
@@ -104,7 +115,7 @@ func mixedBlobs(list []restic.Blob) bool {
 	return false
 }
 
-func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
+func pruneRepository(opts PruneOptions, gopts GlobalOptions, repo restic.Repository) error {
 	ctx := gopts.ctx
 
 	err := repo.LoadIndex(ctx)
@@ -268,11 +279,12 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 		rewritePacks.Delete(packID)
 	}
 
-	Verbosef("will delete %d packs and rewrite %d packs, this frees %s\n",
-		len(removePacks), len(rewritePacks), formatBytes(uint64(removeBytes)))
+	if opts.SkipRewrite && len(rewritePacks) > 0 {
+		Verbosef("skipping rewrite of %d packs\n", len(rewritePacks))
+	} else if len(rewritePacks) > 0 {
+		Verbosef("will rewrite %d packs\n", len(rewritePacks))
 
-	var obsoletePacks restic.IDSet
-	if len(rewritePacks) != 0 {
+		var obsoletePacks restic.IDSet
 		bar = newProgressMax(!gopts.Quiet, uint64(len(rewritePacks)), "packs rewritten")
 		bar.Start()
 		obsoletePacks, err = repository.Repack(ctx, repo, rewritePacks, usedBlobs, bar)
@@ -280,9 +292,12 @@ func pruneRepository(gopts GlobalOptions, repo restic.Repository) error {
 			return err
 		}
 		bar.Done()
+
+		removePacks.Merge(obsoletePacks)
 	}
 
-	removePacks.Merge(obsoletePacks)
+	Verbosef("will delete %d packs, this frees %s\n",
+		len(removePacks), formatBytes(removeBytes))
 
 	if err = rebuildIndex(ctx, repo, removePacks); err != nil {
 		return err

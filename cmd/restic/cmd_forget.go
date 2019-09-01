@@ -43,6 +43,7 @@ type ForgetOptions struct {
 	GroupBy string
 	DryRun  bool
 	Prune   bool
+	PruneOptions
 }
 
 var forgetOptions ForgetOptions
@@ -72,6 +73,7 @@ func init() {
 	f.StringVarP(&forgetOptions.GroupBy, "group-by", "g", "host,paths", "string for grouping snapshots by host,paths,tags")
 	f.BoolVarP(&forgetOptions.DryRun, "dry-run", "n", false, "do not delete anything, just print what would be done")
 	f.BoolVar(&forgetOptions.Prune, "prune", false, "automatically run the 'prune' command if snapshots have been removed")
+	f.BoolVar(&forgetOptions.SkipRewrite, "skip-rewrite", false, "If true, rewriting of partially unused packs during prune will be skipped. Will only be used when --prune is used.")
 
 	f.SortFlags = false
 }
@@ -212,7 +214,7 @@ func runForget(opts ForgetOptions, gopts GlobalOptions, args []string) error {
 			Verbosef("%d snapshots have been removed, running prune\n", removeSnapshots)
 		}
 		if !opts.DryRun {
-			return pruneRepository(gopts, repo)
+			return pruneRepository(forgetOptions.PruneOptions, gopts, repo)
 		}
 	}
 

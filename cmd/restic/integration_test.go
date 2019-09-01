@@ -249,7 +249,8 @@ func testRunForgetJSON(t testing.TB, gopts GlobalOptions, args ...string) {
 }
 
 func testRunPrune(t testing.TB, gopts GlobalOptions) {
-	rtest.OK(t, runPrune(gopts))
+	opts := PruneOptions{RepackThreshold: DefaultRepackThreshold}
+	rtest.OK(t, runPrune(opts, gopts))
 }
 
 func TestBackup(t *testing.T) {
